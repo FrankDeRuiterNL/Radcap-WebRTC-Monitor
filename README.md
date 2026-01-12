@@ -35,7 +35,9 @@ sudo apt-get install -y \
 RADCAP_TARGET_LAT_MS=350 sudo python3 -m uvicorn server:app --host 0.0.0.0 --port 8080
 ```
 
+### Interface Example
 
+![WebRTC Monitor](https://raw.githubusercontent.com/FrankDeRuiterNL/Radcap-WebRTC-Monitor/refs/heads/main/readme/radcap_webrtc_monitor.png)
 
 ## Links
 
