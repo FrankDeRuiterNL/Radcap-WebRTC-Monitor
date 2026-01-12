@@ -1,0 +1,1065 @@
+<!doctype html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8" />
+  <title>Radcap WebRTC Monitor</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root{
+      --bg:#0b0e14;
+      --text:#e8eefc;
+      --muted:#a9b4cc;
+      --line:#24304a;
+      --accent:#6ea8ff;
+      --good:#31d17c;
+      --warn:#ffb020;
+      --bad:#ff4d4d;
+      --shadow: 0 10px 30px rgba(0,0,0,.35);
+      --radius: 14px;
+    }
+    *{ box-sizing:border-box; }
+    body{
+      margin: 18px;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      background: radial-gradient(1200px 600px at 10% 0%, rgba(110,168,255,.18), transparent 60%),
+                  radial-gradient(900px 500px at 80% 10%, rgba(49,209,124,.10), transparent 60%),
+                  var(--bg);
+      color: var(--text);
+    }
+    h1{ margin: 0 0 6px; font-size: 20px; letter-spacing: .2px; }
+    .sub{ color: var(--muted); margin: 0 0 16px; font-size: 13px; line-height: 1.35; }
+
+    .topbar{
+      display:flex;
+      flex-wrap:wrap;
+      gap: 14px;
+      align-items: stretch;
+      padding: 14px;
+      border: 1px solid var(--line);
+      background: rgba(18,24,38,.8);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      margin-bottom: 16px;
+    }
+    .panel{
+      min-width: 360px;
+      flex: 1 1 360px;
+      display:flex;
+      flex-direction:column;
+      gap: 10px;
+    }
+    .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+    .row{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+    .pill{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,.03);
+      color: var(--muted);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+    .pill strong{ color: var(--text); font-weight: 650; }
+    .btn{
+      appearance:none;
+      border:1px solid var(--line);
+      background: rgba(255,255,255,.04);
+      color: var(--text);
+      padding: 8px 10px;
+      border-radius: 12px;
+      cursor:pointer;
+      transition: transform .06s ease, background .15s ease, border-color .15s ease;
+    }
+    .btn:hover{ background: rgba(255,255,255,.07); border-color: rgba(110,168,255,.45); }
+    .btn:active{ transform: translateY(1px); }
+    .btn:disabled{ opacity:.55; cursor:not-allowed; }
+    .btn.primary{ border-color: rgba(110,168,255,.45); background: rgba(110,168,255,.10); }
+    .btn.danger{ border-color: rgba(255,77,77,.5); background: rgba(255,77,77,.08); }
+
+    .playerWrap{
+      flex: 0 0 420px;
+      min-width: 320px;
+      display:flex;
+      flex-direction:column;
+      gap: 10px;
+      justify-content:space-between;
+    }
+    audio#player{ display:none; }
+
+    .meter{
+      height: 10px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      overflow:hidden;
+      background: rgba(255,255,255,.03);
+      position: relative;
+    }
+    .meter > .fill{
+      height:100%;
+      width:0%;
+      background: linear-gradient(90deg, var(--bad), var(--warn), var(--good));
+      transition: width .12s ease;
+    }
+
+    .dbMeter .fill{width:100%;}
+.dbMeter{ height: 12px; }
+    .dbMeter > .fill{
+      background: var(--good);
+      transition: width .10s linear;
+    }
+
+    .dbScale{
+      display:flex;
+      justify-content:space-between;
+      color: rgba(169,180,204,.7);
+      font-size: 11px;
+      margin-top: 4px;
+    }
+
+    .grid{
+      display:grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+    }
+    @media (max-width: 980px){ .grid{ grid-template-columns: repeat(2, 1fr);} }
+    @media (max-width: 640px){ .grid{ grid-template-columns: 1fr;} .panel{ min-width: 0; } }
+
+    .card{
+      border: 1px solid var(--line);
+      background: rgba(18,24,38,.75);
+      border-radius: var(--radius);
+      padding: 12px;
+      box-shadow: var(--shadow);
+      position: relative;
+      overflow:hidden;
+    }
+    .cardHeader{
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+    .title{
+      font-weight: 750;
+      letter-spacing: .2px;
+    }
+    .badge{
+      font-size: 12px;
+      padding: 3px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      color: var(--muted);
+      background: rgba(255,255,255,.03);
+      display:inline-flex;
+      align-items:center;
+      gap: 6px;
+      white-space:nowrap;
+    }
+    .dot{
+      width: 7px; height: 7px; border-radius: 999px;
+      background: rgba(169,180,204,.6);
+    }
+    .dot.ready{ background: var(--good); box-shadow: 0 0 0 4px rgba(49,209,124,.12); }
+    .dot.monitoring{ background: var(--bad); box-shadow: 0 0 0 4px rgba(255,77,77,.14); }
+
+    .freqBig{
+      font-size: 18px;
+      font-weight: 800;
+      letter-spacing: .2px;
+      color: var(--text);
+      margin-top: 2px;
+    }
+    input{
+      width: 140px;
+      padding: 8px 10px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,.04);
+      color: var(--text);
+      outline: none;
+    }
+    input::placeholder{ color: rgba(169,180,204,.55); }
+    .activeRing{
+      box-shadow: 0 0 0 2px rgba(110,168,255,.7) inset, var(--shadow);
+    }
+
+    .dbLegend{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap: 10px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .dbRow{ display:grid; grid-template-columns: 24px 1fr 80px; gap: 10px; align-items:center; }
+    .chanTag{
+      color: rgba(169,180,204,.85);
+      font-weight: 700;
+      font-size: 12px;
+      width: 24px;
+      text-align:right;
+    }
+
+    .rssiLegend{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap: 10px;
+      color: var(--muted);
+      font-size: 12px;
+      margin-top: 10px;
+    }
+
+    .debugPanel{ display:none; }
+    .debugPanel.show{ display:block; }
+  
+/* Hide Mode chip on iOS (Safari layout quirks) */
+body.ios #modeChip{display:none !important;}
+</style>
+</head>
+<body>
+  <h1>Radcap WebRTC Monitor</h1>
+  <p class="sub">Tune in <b>kHz</b> (bv. <span class="mono">102100</span>). Klik <b>Monitor</b> om te luisteren.</p>
+
+  <div class="topbar">
+    <div class="panel">
+      <div class="pill"><span class="dot" id="liveDot"></span> <strong id="now">Niet aan het monitoren</strong></div>
+
+      <div>
+        <div class="dbLegend">
+          <span>Output level (dBFS)</span>
+        </div>
+
+        <div class="dbRow" style="margin-top:8px;">
+          <div class="chanTag">L</div>
+          <div class="meter dbMeter"><div class="fill" id="dbFillL" style="width:0%"></div></div>
+          <div class="mono" id="dbNumL">-∞</div>
+        </div>
+
+        <div class="dbRow" style="margin-top:8px;">
+          <div class="chanTag">R</div>
+          <div class="meter dbMeter"><div class="fill" id="dbFillR" style="width:0%"></div></div>
+          <div class="mono" id="dbNumR">-∞</div>
+        </div>
+
+        <div class="dbScale"><span>-60</span><span>-30</span><span>-12</span><span>-6</span><span>0 dBFS</span></div>
+        <div class="dbLegend" style="margin-top:8px;">
+  <span>Correlation</span>
+  <span class="mono" id="corrNum">—</span>
+</div>
+<div class="meter" style="height:12px;">
+  <div id="corrZero" style="position:absolute; left:50%; top:0; bottom:0; width:1px; background: rgba(169,180,204,.6);"></div>
+  <div id="corrNeedle" style="position:absolute; top:1px; bottom:1px; width:2px; left:50%;
+        background:#fff; border-radius:2px; transition: left .18s ease;"></div>
+</div>
+<div class="dbScale"><span>-1</span><span>-0.5</span><span>0</span><span>+0.5</span><span>+1</span></div>
+
+
+        <div class="rssiLegend">
+          <span>RSSI</span>
+          <span class="mono"><span id="rssiNow">—</span> / 2000</span>
+        </div>
+        <div class="meter"><div class="fill" id="rssiNowFill" style="width:0%"></div></div>
+        <div class="dbScale"><span>0</span><span>500</span><span>1000</span><span>1500</span><span>2000</span></div>
+      </div>
+
+      <div class="debugPanel" id="debugPanel">
+        <div class="mono" id="debugline">debug: -</div>
+        <div class="mono" id="statsline">browser: -</div>
+        <div class="mono" id="srvline">server: -</div>
+      </div>
+    </div>
+
+    <div class="playerWrap">
+      <audio id="player" autoplay playsinline></audio>
+
+      <div class="row">
+        <button class="btn danger" id="stopBtn" onclick="stopMonitor()" disabled>Stop monitor</button>
+        <button class="btn" id="debugBtn" onclick="toggleDebug()" disabled>Debug stats</button>
+        <span class="pill">Tuner: <strong id="stationPill">—</strong></span>
+        <span class="pill">Mode: <strong id="modePill">—</strong></span>
+      </div>
+    </div>
+  </div>
+
+  <div id="grid" class="grid"></div>
+
+<script>
+const WS_PROTO = (location.protocol === "https:") ? "wss" : "ws";
+const IS_IOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+
+const CLIENT_ID = (() => {
+  const k = "radcap_client_id";
+  let v = localStorage.getItem(k);
+  if (!v) {
+    v = (crypto?.randomUUID ? crypto.randomUUID() : (Date.now().toString(36) + Math.random().toString(36).slice(2)));
+    localStorage.setItem(k, v);
+  }
+  return v;
+})();
+
+const MAX_TUNERS = 6;
+let corrUiEma = null;
+let iosMeterTimer = null;
+let iosPending = null;
+let iosLastDbL = null;
+let iosLastDbR = null;
+let iosLastPctL = null;
+let iosLastPctR = null;
+let iosRepaintTimer = null;
+let lastPeakL = null;
+let lastPeakR = null;
+let current = { ws: null, pc: null, station: null, statsTimer: null };
+
+const stationState = new Map(); // i -> {frequency,rssi,stereo}
+
+let audioCtx = null;
+let splitter = null;
+let analyserL = null;
+let analyserR = null;
+let dataL = null;
+let dataR = null;
+let keepAliveGain = null;
+let meterRAF = null;
+let latestPcmEmaL = null;
+let latestPcmEmaR = null;
+let iosDbEmaL = null;
+let iosDbEmaR = null;
+let lastIosDbL = null;
+let lastIosDbR = null;
+
+// Update rates: bars are smooth (RAF), numbers are throttled
+let lastNumUpdate = 0;
+const NUM_UPDATE_MS = 250;
+
+function tunerLabel(i) { return `Tuner ${i+1}`; }
+function setDebug(s) { document.getElementById("debugline").textContent = "debug: " + s; }
+function setStats(s) { document.getElementById("statsline").textContent = "browser: " + s; }
+function setSrv(s) { document.getElementById("srvline").textContent = "server: " + s; }
+
+function fmtFMFromKhz(khzStr) {
+  const khz = Number(khzStr);
+  if (!Number.isFinite(khz) || khz <= 0) return "—";
+  const mhz = khz / 1000.0;
+  return `${mhz.toFixed(1)} FM`;
+}
+
+function parseStereo(stereoStr) {
+  if (stereoStr == null) return null;
+  const s = String(stereoStr).trim().toLowerCase();
+  if (s === "1" || s === "true" || s === "stereo" || s === "yes") return true;
+  if (s === "0" || s === "false" || s === "mono" || s === "no") return false;
+  const n = Number(s);
+  if (Number.isFinite(n)) return n !== 0;
+  return null;
+}
+
+function iosForceSetFill(id, pct) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  // Force Safari to repaint by replacing the node (cheap at 10Hz)
+  const parent = el.parentNode;
+  if (!parent) return;
+  const clone = el.cloneNode(false);
+  clone.id = id;
+  parent.replaceChild(clone, el);
+  setFillPct(clone, pct);
+}
+
+function setFillPct(el, pct) {
+  if (!el) return;
+  // Safari/iOS sometimes fails to repaint width changes reliably; transform is more robust.
+  el.style.transformOrigin = '0 50%';
+  el.style.willChange = 'transform';
+  const s = Math.max(0, Math.min(1, pct/100));
+  el.style.transform = `scaleX(${s}) translateZ(0)`;
+  // Keep width as well for non-transform browsers / initial layout
+  el.style.width = pct.toFixed(1) + '%';
+}
+
+function dbToPctFromDbfs(db) {
+  // db is negative (dBFS). Map -60..0 => 0..100
+  const clamped = Math.max(-60, Math.min(0, db));
+  return ((clamped + 60) / 60) * 100;
+}
+
+function parseDbVal(v) {
+  if (v == null) return NaN;
+  if (typeof v === 'string') {
+    // normalize common locale/safari quirks
+    v = v.trim()
+         .replace(/\u2212/g, '-')   // unicode minus
+         .replace(',', '.');        // comma decimal
+    // extract first float-like token
+    const m = v.match(/-?\d+(?:\.\d+)?/);
+    if (!m) return NaN;
+    v = m[0];
+  }
+  const n = Number(v);
+  return Number.isFinite(n) ? n : NaN;
+}
+
+function fmtDb(db) {
+  if (db == null || !Number.isFinite(db) || db <= -80) return "-∞";
+  return db.toFixed(1) + " dBFS";
+}
+
+function rssiToPercent0to2000(rssiStr) {
+  const r = Number(String(rssiStr).trim());
+  if (!Number.isFinite(r)) return null;
+  const p = (r / 2000.0) * 100;
+  return Math.round(Math.max(0, Math.min(100, p)));
+}
+
+async function setFrequency(station, khz) {
+  const res = await fetch(`/api/stations/${station}/frequency`, {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({khz: Number(khz)})
+  });
+  return res.json();
+}
+
+function highlightActive() {
+  for (let i=0;i<MAX_TUNERS;i++) {
+    const card = document.getElementById(`card-${i}`);
+    if (!card) continue;
+    if (current.station === i) card.classList.add("activeRing");
+    else card.classList.remove("activeRing");
+  }
+}
+
+function updateGlobalRssiMeter(stations=null) {
+  const valEl = document.getElementById("rssiNow");
+  const fillEl = document.getElementById("rssiNowFill");
+
+  if (current.station == null) {
+    valEl.textContent = "—";
+    fillEl.style.width = "0%";
+    return;
+  }
+
+  // Prefer direct value from the latest /ws/status payload (more reliable "realtime")
+  let rssi = null;
+  if (stations && Array.isArray(stations)) {
+    const hit = stations.find(x => x.station === current.station);
+    if (hit) rssi = hit.rssi;
+  }
+  if (rssi == null) {
+    const st = stationState.get(current.station);
+    rssi = st?.rssi;
+  }
+
+  if (rssi == null || rssi === "") {
+    valEl.textContent = "—";
+    fillEl.style.width = "0%";
+    return;
+  }
+
+  valEl.textContent = String(rssi);
+  const pct = rssiToPercent0to2000(rssi);
+  fillEl.style.width = (pct == null ? 0 : pct) + "%";
+}
+
+function stopMeter() {
+  if (meterRAF) cancelAnimationFrame(meterRAF);
+  meterRAF = null;
+
+  analyserL = null; analyserR = null;
+  dataL = null; dataR = null;
+  splitter = null;
+  keepAliveGain = null;
+
+  document.getElementById("dbFillL").style.width = "0%";
+  document.getElementById("dbFillR").style.width = "0%";
+  document.getElementById("dbNumL").textContent = "-∞";
+  document.getElementById("dbNumR").textContent = "-∞";
+}
+
+function computeDbfsFromFloatTimeDomain(arr) {
+  let sum = 0;
+  for (let i=0;i<arr.length;i++) {
+    const v = arr[i];
+    sum += v*v;
+  }
+  const rms = Math.sqrt(sum / arr.length);
+  const eps = 1e-10;
+  return 20 * Math.log10(Math.max(rms, eps));
+}
+
+function dbToPct(db) {
+  const clamped = Math.max(-60, Math.min(0, db));
+  return ((clamped + 60) / 60) * 100;
+}
+
+function startMeterFromStream(stream) {
+  stopMeter();
+  if (!stream) return;
+
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === "suspended") audioCtx.resume().catch(()=>{});
+
+  const src = audioCtx.createMediaStreamSource(stream);
+
+  // Force discrete stereo through the WebAudio graph (prevents browser downmix / duplication)
+  try {
+    src.channelCount = 2;
+    src.channelCountMode = "explicit";
+    src.channelInterpretation = "discrete";
+  } catch (e) { /* ignore */ }
+
+  splitter = audioCtx.createChannelSplitter(2);
+
+  try {
+    splitter.channelCount = 2;
+    splitter.channelCountMode = "explicit";
+    splitter.channelInterpretation = "discrete";
+  } catch (e) { /* ignore */ }
+
+  analyserL = audioCtx.createAnalyser();
+  analyserR = audioCtx.createAnalyser();
+  analyserL.fftSize = 2048;
+  analyserR.fftSize = 2048;
+  analyserL.smoothingTimeConstant = 0.85;
+  analyserR.smoothingTimeConstant = 0.85;
+
+  dataL = new Float32Array(analyserL.fftSize);
+  dataR = new Float32Array(analyserR.fftSize);
+
+  keepAliveGain = audioCtx.createGain();
+  keepAliveGain.gain.value = 0.0;
+  keepAliveGain.connect(audioCtx.destination);
+
+  src.connect(splitter);
+  splitter.connect(analyserL, 0);
+  splitter.connect(analyserR, 1);
+
+  analyserL.connect(keepAliveGain);
+  analyserR.connect(keepAliveGain);
+
+  const fillL = document.getElementById("dbFillL");
+  const fillR = document.getElementById("dbFillR");
+  const numL = document.getElementById("dbNumL");
+  const numR = document.getElementById("dbNumR");
+
+  function tick(ts) {
+    if (!analyserL || !analyserR) return;
+
+    analyserL.getFloatTimeDomainData(dataL);
+    analyserR.getFloatTimeDomainData(dataR);
+
+    const dbL = computeDbfsFromFloatTimeDomain(dataL);
+    const dbR = computeDbfsFromFloatTimeDomain(dataR);
+
+    fillL.style.width = dbToPct(dbL).toFixed(1) + "%";
+    fillR.style.width = dbToPct(dbR).toFixed(1) + "%";
+
+    // throttle number updates for readability
+    if ((ts - lastNumUpdate) >= NUM_UPDATE_MS) {
+      lastNumUpdate = ts;
+      const dispL = (dbL <= -80) ? "-∞" : dbL.toFixed(1) + " dBFS";
+      const dispR = (dbR <= -80) ? "-∞" : dbR.toFixed(1) + " dBFS";
+      numL.textContent = dispL;
+      numR.textContent = dispR;
+    }
+
+    meterRAF = requestAnimationFrame(tick);
+  }
+
+  meterRAF = requestAnimationFrame(tick);
+}
+
+function setStationBadge(i, stateText) {
+  const modeEl = document.getElementById(`mode-${i}`);
+  const dotEl = document.getElementById(`dot-${i}`);
+  const monBtn = document.getElementById(`mon-${i}`);
+  const stopBtn = document.getElementById(`stop-${i}`);
+
+  if (!modeEl || !dotEl) return;
+
+  modeEl.textContent = stateText;
+
+  dotEl.classList.remove("ready", "monitoring", "inuse");
+if (stateText === "monitoring") dotEl.classList.add("monitoring");
+else if (stateText === "In Use") dotEl.classList.add("inuse");
+else dotEl.classList.add("ready");
+
+  if (monBtn) monBtn.disabled = (stateText === "In Use" || stateText === "monitoring");
+  if (stopBtn) stopBtn.disabled = (stateText !== "monitoring");
+}
+
+async function stopMonitor() {
+  if (current.statsTimer) { clearInterval(current.statsTimer); current.statsTimer = null; }
+  if (current.ws) { try { current.ws.close(); } catch {} }
+  if (current.pc) { try { current.pc.close(); } catch {} }
+
+  current = { ws: null, pc: null, station: null, statsTimer: null };
+
+  const player = document.getElementById("player");
+  player.srcObject = null;
+
+  document.getElementById("now").textContent = "Niet aan het monitoren";
+  document.getElementById("stopBtn").disabled = true;
+  document.getElementById("debugBtn").disabled = true;
+  document.getElementById("stationPill").textContent = "—";
+  document.getElementById("modePill").textContent = "—";
+
+  document.getElementById("liveDot").classList.remove("ready", "monitoring");
+
+  stopMeter();
+  updateGlobalRssiMeter();
+  highlightActive();
+}
+
+function startStatsLoop(pc) {
+  current.statsTimer = setInterval(async () => {
+    try {
+      const stats = await pc.getStats();
+      let inbound = null;
+
+      stats.forEach(r => {
+        if (r.type === "inbound-rtp" && r.kind === "audio") inbound = r;
+      });
+
+      if (!inbound) {
+        setStats("no inbound-rtp(audio) yet");
+        return;
+      }
+
+      const br = inbound.bytesReceived ?? 0;
+      const pr = inbound.packetsReceived ?? 0;
+      const jb = inbound.jitter ?? 0;
+      const pl = inbound.packetsLost ?? 0;
+
+      setStats(`bytes=${br} packets=${pr} lost=${pl} jitter=${jb}`);
+    } catch (e) {
+      setStats("getStats failed (see console)");
+      console.warn("getStats failed", e);
+    }
+  }, 500);
+}
+
+function toggleDebug() {
+  const p = document.getElementById("debugPanel");
+  p.classList.toggle("show");
+}
+
+async function monitor(station) {
+  await stopMonitor();
+
+  document.getElementById("now").textContent = `${tunerLabel(station)} aan het verbinden…`;
+  document.getElementById("stopBtn").disabled = false;
+  document.getElementById("debugBtn").disabled = false;
+  document.getElementById("stationPill").textContent = String(station + 1);
+  document.getElementById("modePill").textContent = "WebRTC";
+  setDebug("opening ws/webrtc/" + station);
+  setStats("waiting…");
+  setSrv("waiting…");
+
+  const ws = new WebSocket(`${WS_PROTO}://${location.host}/ws/webrtc/${station}?client_id=${encodeURIComponent(CLIENT_ID)}`);
+  const pc = new RTCPeerConnection({ iceServers: [] });
+
+  pc.addTransceiver("audio", { direction: "recvonly" });
+
+  pc.onconnectionstatechange = () => setDebug(`conn=${pc.connectionState} ice=${pc.iceConnectionState}`);
+  pc.oniceconnectionstatechange = () => setDebug(`conn=${pc.connectionState} ice=${pc.iceConnectionState}`);
+
+  pc.ontrack = async (ev) => {
+    const stream = ev.streams[0];
+    const player = document.getElementById("player");
+    player.srcObject = stream;
+    player.muted = false;
+    player.volume = 1.0;
+
+    try {
+      await player.play();
+      document.getElementById("now").textContent = `${tunerLabel(station)} (monitoring)`;
+      startMeterFromStream(stream);
+    } catch (e) {
+      console.warn("player.play() blocked:", e);
+      document.getElementById("now").textContent = `${tunerLabel(station)} (track OK, play blocked)`;
+    }
+  };
+
+  pc.onicecandidate = (ev) => {
+    if (ev.candidate && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({
+        type: "ice",
+        mlineindex: ev.candidate.sdpMLineIndex,
+        candidate: ev.candidate.candidate
+      }));
+    }
+  };
+
+  ws.onopen = () => {
+    setDebug("ws open, waiting offer...");
+    startStatsLoop(pc);
+    updateGlobalRssiMeter();
+  };
+
+  ws.onmessage = async (ev) => {
+    const msg = JSON.parse(ev.data);
+
+    if (msg.type === "offer") {
+      setDebug("got offer, creating answer...");
+      await pc.setRemoteDescription({ type: "offer", sdp: msg.sdp });
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      ws.send(JSON.stringify({ type: "answer", sdp: pc.localDescription.sdp }));
+      setDebug("answer sent");
+    } else if (msg.type === "ice") {
+      try {
+        await pc.addIceCandidate({ sdpMLineIndex: msg.mlineindex, candidate: msg.candidate });
+      } catch (e) {
+        console.warn("addIceCandidate failed", e);
+      }
+    } else if (msg.type === "srvstats") {
+      const b = msg.rtp_total_bytes ?? 0;
+      const n = msg.rtp_total_bufs ?? 0;
+
+      // Update debug line (keep existing peak text)
+      const peakArr = msg.last_level && msg.last_level.peak ? msg.last_level.peak : null;
+      if (msg.pcm_db_ema_l != null) latestPcmEmaL = Number(msg.pcm_db_ema_l);
+      if (msg.pcm_db_ema_r != null) latestPcmEmaR = Number(msg.pcm_db_ema_r);
+
+      const lvl = peakArr ? ` peak=${peakArr.map(x => (Number(x).toFixed?.(1) ?? x)).join(",")}` : "";
+const pcm = (msg.pcm_db_ema_l != null && msg.pcm_db_ema_r != null)
+  ? ` pcm_ema=${Number(msg.pcm_db_ema_l).toFixed(1)},${Number(msg.pcm_db_ema_r).toFixed(1)}`
+  : (msg.pcm_db_l != null && msg.pcm_db_r != null)
+    ? ` pcm=${Number(msg.pcm_db_l).toFixed(1)},${Number(msg.pcm_db_r).toFixed(1)}`
+    : "";
+      setSrv(`rtp_total_bytes=${b} bufs=${n}${lvl}${pcm}`);
+
+      // Drive meters from server-side 'level' plugin (reliable stereo)
+      if (peakArr && Array.isArray(peakArr) && peakArr.length >= 2) {
+        // On iOS/Safari, use server-provided PCM RMS meters (EMA) to ensure both channels update reliably.
+let dbL = NaN, dbR = NaN;
+if (IS_IOS && msg.pcm_db_ema_l != null && msg.pcm_db_ema_r != null) {
+  dbL = parseDbVal(msg.pcm_db_ema_l);
+  dbR = parseDbVal(msg.pcm_db_ema_r);
+} else {
+  dbL = parseDbVal(peakArr[0]);
+  dbR = parseDbVal(peakArr[1]);
+}
+
+// iOS/Safari edge: sometimes one channel parses as NaN.
+// Keep last known value for that side so the UI doesn't "die".
+if (!Number.isFinite(dbL) && Number.isFinite(lastPeakL)) dbL = lastPeakL;
+if (!Number.isFinite(dbR) && Number.isFinite(lastPeakR)) dbR = lastPeakR;
+
+if (Number.isFinite(dbL)) lastPeakL = dbL;
+if (Number.isFinite(dbR)) lastPeakR = dbR;
+
+// If we still don't have both, don't update (avoids flicker)
+if (!Number.isFinite(dbL) || !Number.isFinite(dbR)) {
+  return;
+}
+
+        const fillL = document.getElementById("dbFillL");
+        const fillR = document.getElementById("dbFillR");
+        const numL = document.getElementById("dbNumL");
+        const numR = document.getElementById("dbNumR");
+        const corrNum = document.getElementById("corrNum");
+        const corrNeedle = document.getElementById("corrNeedle");
+
+        const pctL = dbToPctFromDbfs(dbL);
+const pctR = dbToPctFromDbfs(dbR);
+
+if (IS_IOS) {
+  // iOS/Safari repaint quirk: throttle meter DOM writes and apply in a single timer.
+  iosPending = { pctL, pctR, dbL, dbR };
+  if (!iosMeterTimer) {
+    iosMeterTimer = setInterval(() => {
+  if (!iosPending) return;
+  const p = iosPending;
+  iosPending = null;
+
+  // Cache last good dB values to avoid -∞ flicker
+  if (Number.isFinite(p.dbL)) iosLastDbL = p.dbL;
+  if (Number.isFinite(p.dbR)) iosLastDbR = p.dbR;
+
+  const dbL2 = (iosLastDbL != null) ? iosLastDbL : p.dbL;
+  const dbR2 = (iosLastDbR != null) ? iosLastDbR : p.dbR;
+
+  const pctL2 = Number.isFinite(p.pctL) ? p.pctL : iosLastPctL;
+  const pctR2 = Number.isFinite(p.pctR) ? p.pctR : iosLastPctR;
+  if (pctL2 != null) iosLastPctL = pctL2;
+  if (pctR2 != null) iosLastPctR = pctR2;
+
+  const fillL2 = document.getElementById("dbFillL");
+  const fillR2 = document.getElementById("dbFillR");
+  const numL2 = document.getElementById("dbNumL");
+  const numR2 = document.getElementById("dbNumR");
+
+  if (numL2 && Number.isFinite(dbL2)) numL2.textContent = fmtDb(dbL2);
+  if (numR2 && Number.isFinite(dbR2)) numR2.textContent = fmtDb(dbR2);
+
+  if (fillL2 && pctL2 != null) setFillPct(fillL2, pctL2);
+  if (fillR2 && pctR2 != null) setFillPct(fillR2, pctR2);
+}, 100);
+
+// Force a full repaint occasionally (Safari can "stick" one bar)
+if (!iosRepaintTimer) {
+  iosRepaintTimer = setInterval(() => {
+    if (!IS_IOS) return;
+    const fL = document.getElementById("dbFillL");
+    const fR = document.getElementById("dbFillR");
+    if (!fL || !fR) return;
+
+    const pL = fL.parentNode;
+    const pR = fR.parentNode;
+    if (!pL || !pR) return;
+
+    // Clone nodes in-place but keep computed transform (reduces visual jump)
+    const cL = fL.cloneNode(false); cL.id = "dbFillL";
+    const cR = fR.cloneNode(false); cR.id = "dbFillR";
+    pL.replaceChild(cL, fL);
+    pR.replaceChild(cR, fR);
+
+    if (iosLastPctL != null) setFillPct(cL, iosLastPctL);
+    if (iosLastPctR != null) setFillPct(cR, iosLastPctR);
+  }, 1000);
+} // 10 Hz
+  }
+} else {
+  setFillPct(fillL, pctL);
+  setFillPct(fillR, pctR);
+}
+        if (numL) numL.textContent = fmtDb(dbL);
+        if (numR) numR.textContent = fmtDb(dbR);
+        // Correlation from server (EMA) if available; fallback to a tiny heuristic from peak diff
+let corr = null;
+if (msg.corr_ema != null && Number.isFinite(Number(msg.corr_ema))) {
+  corr = Number(msg.corr_ema);
+} else if (msg.corr != null && Number.isFinite(Number(msg.corr))) {
+  corr = Number(msg.corr);
+} else {
+  // heuristic: small peak diff -> likely high correlation
+  const d = Math.abs(dbL - dbR);
+  corr = Math.max(-1, Math.min(1, 1 - (d / 6)));
+}
+// Client-side smoothing so the needle moves pleasantly
+if (corrUiEma == null) corrUiEma = corr;
+else {
+  const a = 0.20; // more smoothing = smaller
+  corrUiEma = (1 - a) * corrUiEma + a * corr;
+}
+
+const pct = ((corrUiEma + 1) / 2) * 100; // -1..+1 => 0..100
+if (corrNeedle) corrNeedle.style.left = pct.toFixed(1) + "%";
+if (corrNum) corrNum.textContent = ((corrUiEma >= 0 ? "+" : "") + corrUiEma.toFixed(2));
+      } else if (peakArr && Array.isArray(peakArr) && peakArr.length === 1) {
+        // Mono: mirror to both
+        let db = NaN;
+        if (IS_IOS && msg.pcm_db_ema_l != null) db = parseDbVal(msg.pcm_db_ema_l);
+        else db = parseDbVal(peakArr[0]);
+        if (!Number.isFinite(db)) { return; }
+        lastPeakL = db; lastPeakR = db;
+        const fillL = document.getElementById("dbFillL");
+        const fillR = document.getElementById("dbFillR");
+        const numL = document.getElementById("dbNumL");
+        const numR = document.getElementById("dbNumR");
+        const corrNum = document.getElementById("corrNum");
+        const corrNeedle = document.getElementById("corrNeedle");
+
+        const pct = dbToPctFromDbfs(db);
+if (IS_IOS) {
+  iosPending = { fillL, fillR, pctL: pct, pctR: pct };
+  if (!iosMeterTimer) {
+    iosMeterTimer = setInterval(() => {
+  if (!iosPending) return;
+  const p = iosPending;
+  iosPending = null;
+
+  // Cache last good dB values to avoid -∞ flicker
+  if (Number.isFinite(p.dbL)) iosLastDbL = p.dbL;
+  if (Number.isFinite(p.dbR)) iosLastDbR = p.dbR;
+
+  const dbL2 = (iosLastDbL != null) ? iosLastDbL : p.dbL;
+  const dbR2 = (iosLastDbR != null) ? iosLastDbR : p.dbR;
+
+  const pctL2 = Number.isFinite(p.pctL) ? p.pctL : iosLastPctL;
+  const pctR2 = Number.isFinite(p.pctR) ? p.pctR : iosLastPctR;
+  if (pctL2 != null) iosLastPctL = pctL2;
+  if (pctR2 != null) iosLastPctR = pctR2;
+
+  const fillL2 = document.getElementById("dbFillL");
+  const fillR2 = document.getElementById("dbFillR");
+  const numL2 = document.getElementById("dbNumL");
+  const numR2 = document.getElementById("dbNumR");
+
+  if (numL2 && Number.isFinite(dbL2)) numL2.textContent = fmtDb(dbL2);
+  if (numR2 && Number.isFinite(dbR2)) numR2.textContent = fmtDb(dbR2);
+
+  if (fillL2 && pctL2 != null) setFillPct(fillL2, pctL2);
+  if (fillR2 && pctR2 != null) setFillPct(fillR2, pctR2);
+}, 100);
+
+// Force a full repaint occasionally (Safari can "stick" one bar)
+if (!iosRepaintTimer) {
+  iosRepaintTimer = setInterval(() => {
+    if (!IS_IOS) return;
+    const fL = document.getElementById("dbFillL");
+    const fR = document.getElementById("dbFillR");
+    if (!fL || !fR) return;
+
+    const pL = fL.parentNode;
+    const pR = fR.parentNode;
+    if (!pL || !pR) return;
+
+    // Clone nodes in-place but keep computed transform (reduces visual jump)
+    const cL = fL.cloneNode(false); cL.id = "dbFillL";
+    const cR = fR.cloneNode(false); cR.id = "dbFillR";
+    pL.replaceChild(cL, fL);
+    pR.replaceChild(cR, fR);
+
+    if (iosLastPctL != null) setFillPct(cL, iosLastPctL);
+    if (iosLastPctR != null) setFillPct(cR, iosLastPctR);
+  }, 1000);
+}
+  }
+} else {
+  setFillPct(fillL, pct);
+  setFillPct(fillR, pct);
+}
+        if (numL) numL.textContent = fmtDb(db);
+        if (numR) numR.textContent = fmtDb(db);
+        corrUiEma = 1.0;
+        if (corrNeedle) corrNeedle.style.left = "100%";
+        if (corrNum) corrNum.textContent = "+1.00";
+      }
+    }
+  };
+
+  ws.onerror = () => {
+    document.getElementById("now").textContent = `${tunerLabel(station)} (WebSocket error)`;
+    setDebug("ws error");
+  };
+
+  ws.onclose = () => {
+    if (current.station === station) stopMonitor();
+  };
+
+  current = { ws, pc, station, statsTimer: null };
+  highlightActive();
+  updateGlobalRssiMeter();
+}
+
+function rssiPillStyle(pill, raw) {
+  const r = Number(raw);
+  pill.style.color = "var(--text)";
+  if (!Number.isFinite(r)) {
+    pill.textContent = "RSSI: —";
+    pill.style.borderColor = "var(--line)";
+    return;
+  }
+  pill.textContent = `RSSI: ${r}`;
+  if (r >= 1400) pill.style.borderColor = "rgba(49,209,124,.65)";
+  else if (r >= 900) pill.style.borderColor = "rgba(255,176,32,.6)";
+  else pill.style.borderColor = "rgba(255,77,77,.55)";
+}
+
+function render() {
+  const grid = document.getElementById("grid");
+  grid.innerHTML = "";
+
+  for (let i=0;i<MAX_TUNERS;i++) {
+    const card = document.createElement("div");
+    card.className = "card";
+    card.id = `card-${i}`;
+
+    card.innerHTML = `
+      <div class="cardHeader">
+        <div>
+          <div class="title">${tunerLabel(i)}</div>
+          <div class="freqBig" id="freqPretty-${i}">—</div>
+        </div>
+        <div class="badge"><span class="dot" id="dot-${i}"></span><span id="mode-${i}">—</span></div>
+      </div>
+
+      <div class="row" style="margin: 10px 0 12px;">
+        <span class="pill" id="stereoPill-${i}">—</span>
+        <span class="pill" id="rssiPill-${i}">RSSI: —</span>
+      </div>
+
+      <div class="row">
+        <input id="freq-${i}" placeholder="102100" inputmode="numeric" />
+        <button class="btn" id="tune-${i}">Tune</button>
+        <button class="btn primary" id="mon-${i}">Monitor</button>
+      </div>
+    `;
+
+    grid.appendChild(card);
+
+    const tuneBtn = document.getElementById(`tune-${i}`);
+    const freqInput = document.getElementById(`freq-${i}`);
+    tuneBtn.onclick = async () => {
+      tuneBtn.disabled = true;
+      try {
+        const resp = await setFrequency(i, freqInput.value);
+        if (resp && resp.error) alert(`${tunerLabel(i)}: ${resp.error}`);
+      } finally {
+        tuneBtn.disabled = false;
+      }
+    };
+
+    document.getElementById(`mon-${i}`).onclick = async () => {
+      await monitor(i);
+    };
+  }
+
+  highlightActive();
+}
+
+function startStatusWS() {
+  const ws = new WebSocket(`${WS_PROTO}://${location.host}/ws/status?client_id=${encodeURIComponent(CLIENT_ID)}`);
+  ws.onmessage = (ev) => {
+    const msg = JSON.parse(ev.data);
+    if (!msg.stations) return;
+
+    msg.stations.forEach(s => {
+      const i = s.station;
+      stationState.set(i, { frequency: s.frequency, rssi: s.rssi, stereo: s.stereo, busy: !!s.busy, listeners: (s.listeners ?? 0) });
+
+      const pretty = fmtFMFromKhz(s.frequency);
+      const fp = document.getElementById(`freqPretty-${i}`);
+      if (fp) fp.textContent = (pretty === "—") ? "Freq: —" : `Freq: ${pretty}`;
+
+      const fi = document.getElementById(`freq-${i}`);
+      if (fi && (!fi.value || fi.value.trim() === "") && s.frequency) fi.value = s.frequency;
+
+      // Stereo pill
+      const sp = document.getElementById(`stereoPill-${i}`);
+      const st = parseStereo(s.stereo);
+      if (sp) {
+        if (st === true) { sp.textContent = "Stereo"; sp.style.borderColor = "rgba(49,209,124,.6)"; sp.style.color = "var(--text)"; }
+        else if (st === false) { sp.textContent = "Mono"; sp.style.borderColor = "rgba(255,176,32,.55)"; sp.style.color = "var(--text)"; }
+        else { sp.textContent = "—"; sp.style.borderColor = "var(--line)"; sp.style.color = "var(--muted)"; }
+      }
+
+      // RSSI pill
+      const rp = document.getElementById(`rssiPill-${i}`);
+      if (rp) rssiPillStyle(rp, s.rssi);
+
+      // Status badge + dot color
+      if (current.station === i) setStationBadge(i, "monitoring");
+      else if (s.busy) setStationBadge(i, "In Use");
+      else setStationBadge(i, "ready");
+    });
+
+    updateGlobalRssiMeter(msg.stations);
+    highlightActive();
+  };
+  ws.onclose = () => setTimeout(startStatusWS, 1000);
+}
+
+render();
+startStatusWS();
+updateGlobalRssiMeter();
+</script>
+</body>
+</html>
